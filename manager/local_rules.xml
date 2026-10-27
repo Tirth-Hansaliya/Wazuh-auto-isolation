@@ -1,0 +1,70 @@
+<!-- /var/ossec/etc/rules/local_rules.xml  (append these groups) -->
+
+<!-- ============ DETECTION rules (these trigger isolation) ============ -->
+<group name="local,malware,">
+
+  <!-- Existing rule, unchanged: VirusTotal hash lookup, 5+ engines (all OS, via FIM) -->
+  <rule id="100200" level="12">
+    <if_sid>87105</if_sid>
+    <field name="virustotal.positives" type="pcre2">^([5-9]|[1-9][0-9]+)$</field>
+    <description>VirusTotal: $(virustotal.positives) engines flagged $(virustotal.source.file). Isolating endpoint.</description>
+  </rule>
+
+  <!-- Windows: Microsoft Defender real-time/system-wide detection (event 1116) -->
+  <rule id="100220" level="12">
+    <decoded_as>windows_eventchannel</decoded_as>
+    <field name="win.system.providerName">Windows Defender</field>
+    <field name="win.system.eventID">^1116$</field>
+    <description>Windows Defender detected malware: $(win.eventdata.threatName). Isolating endpoint.</description>
+  </rule>
+
+  <!-- Linux / Ubuntu / macOS: ClamAV via wazuh-av-scan.sh -->
+  <rule id="100230" level="12">
+    <location>wazuh-av.log</location>
+    <program_name>wazuh-av</program_name>
+    <match>DETECTED sig=</match>
+    <description>ClamAV detected malware (wazuh-av). Isolating endpoint.</description>
+  </rule>
+
+  <rule id="100231" level="8">
+    <location>wazuh-av.log</location>
+    <program_name>wazuh-av</program_name>
+    <match>ERROR</match>
+    <description>wazuh-av scanner error (ClamAV missing or failing): endpoint is NOT being scanned.</description>
+  </rule>
+</group>
+
+<!-- ============ ISOLATION LIFECYCLE rules (audit trail, never trigger AR) ============ -->
+<group name="local,active_response,isolation,">
+  <rule id="100210" level="12">
+    <location>active-responses.log</location>
+    <match>isolate: ISOLATED</match>
+    <description>Endpoint ISOLATED from the network by Wazuh active response.</description>
+  </rule>
+
+  <rule id="100211" level="7">
+    <location>active-responses.log</location>
+    <match>isolate: RELEASED</match>
+    <description>Endpoint RELEASED from isolation (network restored).</description>
+  </rule>
+
+  <rule id="100212" level="3">
+    <location>active-responses.log</location>
+    <regex type="pcre2">isolate: (IGNORED|SUPPRESSED)</regex>
+    <description>Repeated malware alert ignored (already isolated or in cooldown): no isolation loop.</description>
+  </rule>
+
+  <rule id="100213" level="10">
+    <location>active-responses.log</location>
+    <regex type="pcre2">isolate: (ABORT|ERROR)</regex>
+    <description>Isolation FAILED on the endpoint. Check the agent's active-responses.log.</description>
+  </rule>
+</group>
+
+<!-- ============ HEALTH rule: host firewall disabled (alert only, does NOT isolate) ============ -->
+<group name="local,firewall,">
+  <rule id="100240" level="10">
+    <match>fw-check: FIREWALL_OFF</match>
+    <description>Host firewall is DISABLED on this endpoint.</description>
+  </rule>
+</group>

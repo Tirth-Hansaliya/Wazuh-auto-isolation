@@ -1,0 +1,47 @@
+<!-- =====================================================================
+ Wazuh MANAGER: /var/ossec/etc/ossec.conf
+ Put these blocks INSIDE <ossec_config> ... </ossec_config>.
+
+ FIRST DELETE the old blocks from the earlier version:
+   <command> isolate-win / deisolate-win
+   <active-response> using isolate-win (the one with <timeout>120</timeout>)
+ Two isolation paths at the same time is exactly what causes conflicts.
+ ===================================================================== -->
+
+<!-- Optional extra layer: VirusTotal lookup for files seen by FIM.
+     Only NEW files (rule 554) are sent to save the free quota (4/min, 500/day). -->
+<integration>
+  <name>virustotal</name>
+  <api_key>YOUR_VIRUSTOTAL_API_KEY</api_key>
+  <rule_id>554</rule_id>
+  <alert_format>json</alert_format>
+</integration>
+
+<!-- Isolation commands. timeout_allowed=no on purpose: release is done by the
+     watchdog service on the endpoint, never by Wazuh's <timeout>. -->
+<command>
+  <name>isolate-endpoint-win</name>
+  <executable>isolate.cmd</executable>
+  <timeout_allowed>no</timeout_allowed>
+</command>
+
+<command>
+  <name>isolate-endpoint-unix</name>
+  <executable>isolate.sh</executable>
+  <timeout_allowed>no</timeout_allowed>
+</command>
+
+<!-- Trigger on every malware rule. An agent only runs the executable it has
+     (Windows has isolate.cmd, Linux/macOS have isolate.sh), the other one is
+     skipped with an INFO line in the agent's ossec.log. -->
+<active-response>
+  <command>isolate-endpoint-win</command>
+  <location>local</location>
+  <rules_id>100200,100220,100230</rules_id>
+</active-response>
+
+<active-response>
+  <command>isolate-endpoint-unix</command>
+  <location>local</location>
+  <rules_id>100200,100220,100230</rules_id>
+</active-response>
